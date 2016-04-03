@@ -186,6 +186,8 @@ commands(Autopilot_Interface &api)
 	// initialize command data strtuctures
 	mavlink_set_position_target_local_ned_t sp;
 	mavlink_set_position_target_local_ned_t ip = api.initial_position;
+	mavlink_set_position_target_global_int_t sp_global;
+	mavlink_set_position_target_global_int_t ip_global = api.initial_global_position;
 
 	// autopilot_interface.h provides some helper functions to build the command
 
@@ -197,10 +199,10 @@ commands(Autopilot_Interface &api)
 //				   sp        );
 
 	// Example 2 - Set Position
-	 set_position( ip.x - 5.0 , // [m]
-			 	   ip.y - 5.0 , // [m]
-				   ip.z       , // [m]
-				   sp         );
+	 // set_position( ip.x - 5.0 , // [m]
+		// 	 	   ip.y - 5.0 , // [m]
+		// 		   ip.z       , // [m]
+		// 		   sp         );
 
 
 	// Example 1.2 - Append Yaw Command
@@ -208,14 +210,17 @@ commands(Autopilot_Interface &api)
 			 sp     );
 
 	// SEND THE COMMAND
-	api.update_setpoint(sp);
+	// api.update_setpoint(sp);
+	api.update_global_setpoint(sp_global);
 	// NOW pixhawk will try to move
 
 	// Wait for 8 seconds, check position
 	for (int i=0; i < 8; i++)
 	{
-		mavlink_local_position_ned_t pos = api.current_messages.local_position_ned;
-		printf("%i CURRENT POSITION XYZ = [ % .4f , % .4f , % .4f ] \n", i, pos.x, pos.y, pos.z);
+		// mavlink_local_position_ned_t pos = api.current_messages.local_position_ned;
+		// printf("%i CURRENT POSITION XYZ = [ % .4f , % .4f , % .4f ] \n", i, pos.x, pos.y, pos.z);
+		mavlink_global_position_int_t pos = api.current_messages.global_position_int;
+		printf("%i CURRENT POSITION XYZ = [ %d , %d , %d ] \n", i, pos.lat, pos.lon, pos.alt);
 		sleep(1);
 	}
 
@@ -241,8 +246,14 @@ commands(Autopilot_Interface &api)
 
 	// local position in ned frame
 	mavlink_local_position_ned_t pos = messages.local_position_ned;
+	mavlink_battery_status_t batt_stat = messages.battery_status;
 	printf("Got message LOCAL_POSITION_NED (spec: https://pixhawk.ethz.ch/mavlink/#LOCAL_POSITION_NED)\n");
 	printf("    pos  (NED):  %f %f %f (m)\n", pos.x, pos.y, pos.z );
+	printf("Got message ID_BATTERY_STATUS \n");
+	for (int i = 0; i < 10; i++)
+	{
+			printf("    battery remaining in cell %d:  %d (V)\n", i, batt_stat.voltages[i]);
+	}
 
 	// hires imu
 	mavlink_highres_imu_t imu = messages.highres_imu;

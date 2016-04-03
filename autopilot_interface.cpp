@@ -54,7 +54,6 @@
 
 #include "autopilot_interface.h"
 
-
 // ----------------------------------------------------------------------------------
 //   Time
 // ------------------- ---------------------------------------------------------------
@@ -71,13 +70,13 @@ get_time_usec()
 //   Setpoint Helper Functions
 // ----------------------------------------------------------------------------------
 
-// choose one of the next three
+// choose one of the next FOUR
 
 /*
  * Set target local ned position
  *
- * Modifies a mavlink_set_position_target_local_ned_t struct with target XYZ locations
- * in the Local NED frame, in meters.
+ * Modifies a mavlink_set_position_target_local_ned_t struct with target lat_int, lon_int, alt parameters
+ * in the global frame. lat_int is x position
  */
 void
 set_position(float x, float y, float z, mavlink_set_position_target_local_ned_t &sp)
@@ -92,6 +91,31 @@ set_position(float x, float y, float z, mavlink_set_position_target_local_ned_t 
 	sp.z   = z;
 
 	printf("POSITION SETPOINT XYZ = [ %.4f , %.4f , %.4f ] \n", sp.x, sp.y, sp.z);
+
+}
+
+/*
+ * Set target global position
+ *
+ * Modifies a mavlink_set_position_target_local_ned_t struct with target XYZ locations
+ * in the Local NED frame, in meters.
+ * lat_int	int32_t	X Position in WGS84 frame in 1e7 * meters
+ * lon_int	int32_t	Y Position in WGS84 frame in 1e7 * meters
+ * alt	float	Altitude in meters in AMSL altitude, not WGS84 if absolute or relative, above terrain if GLOBAL_TERRAIN_ALT_INT
+ */
+void
+set_global_position(int32_t lat_int, int32_t lon_int, float alt, mavlink_set_position_target_global_int_t &sp)
+{
+	sp.type_mask =
+		MAVLINK_MSG_SET_POSITION_TARGET_LOCAL_NED_POSITION;
+
+	sp.coordinate_frame = MAV_FRAME_GLOBAL_INT;
+
+	sp.lat_int   = lat_int;
+	sp.lon_int   = lon_int;
+	sp.alt   = alt;
+
+	printf("GLOBAL POSITION SETPOINT XYZ = [ %d , %d , %.4f ] \n", sp.lat_int, sp.lon_int, sp.alt);
 
 }
 
@@ -215,7 +239,7 @@ Autopilot_Interface::
 ~Autopilot_Interface()
 {}
 
-
+#ifdef LOCAL_POSITIONING
 // ------------------------------------------------------------------------------
 //   Update Setpoint
 // ------------------------------------------------------------------------------
@@ -225,8 +249,17 @@ update_setpoint(mavlink_set_position_target_local_ned_t setpoint)
 {
 	current_setpoint = setpoint;
 }
-
-
+#else
+// ------------------------------------------------------------------------------
+//   Update Global Setpoint
+// ------------------------------------------------------------------------------
+void
+Autopilot_Interface::
+update_global_setpoint(mavlink_set_position_target_global_int_t setpoint)
+{
+	current_setpoint = setpoint;
+}
+#endif
 // ------------------------------------------------------------------------------
 //   Read Messages
 // ------------------------------------------------------------------------------
@@ -367,11 +400,11 @@ read_messages()
 		received_all =
 				this_timestamps.heartbeat                  &&
 				this_timestamps.sys_status                 &&
-//				this_timestamps.battery_status             &&
-//				this_timestamps.radio_status               &&
+				this_timestamps.battery_status             &&
+				this_timestamps.radio_status               &&
 				this_timestamps.local_position_ned         &&
-//				this_timestamps.global_position_int        &&
-//				this_timestamps.position_target_local_ned  &&
+				this_timestamps.global_position_int        &&
+				this_timestamps.position_target_local_ned  &&
 				this_timestamps.position_target_global_int &&
 				this_timestamps.highres_imu                &&
 				this_timestamps.attitude                   ;
@@ -402,6 +435,7 @@ write_message(mavlink_message_t message)
 	return len;
 }
 
+#ifdef LOCAL_POSITIONING
 // ------------------------------------------------------------------------------
 //   Write Setpoint Message
 // ------------------------------------------------------------------------------
@@ -446,7 +480,52 @@ write_setpoint()
 
 	return;
 }
+#else
+// ------------------------------------------------------------------------------
+//   Write Setpoint Message
+// ------------------------------------------------------------------------------
+void
+Autopilot_Interface::
+write_global_setpoint()
+{
+	// --------------------------------------------------------------------------
+	//   PACK PAYLOAD
+	// --------------------------------------------------------------------------
 
+	// pull from position target
+	mavlink_set_position_target_global_int_t sp = current_setpoint;
+
+	// double check some system parameters
+	if ( not sp.time_boot_ms )
+		sp.time_boot_ms = (uint32_t) (get_time_usec()/1000);
+	sp.target_system    = system_id;
+	sp.target_component = autopilot_id;
+
+
+	// --------------------------------------------------------------------------
+	//   ENCODE
+	// --------------------------------------------------------------------------
+
+	mavlink_message_t message;
+	mavlink_msg_set_position_target_global_int_encode(system_id, companion_id, &message, &sp);
+
+
+	// --------------------------------------------------------------------------
+	//   WRITE
+	// --------------------------------------------------------------------------
+
+	// do the write
+	int len = write_message(message);
+
+	// check the write
+	if ( not len > 0 )
+		fprintf(stderr,"WARNING: could not send POSITION_TARGET_GLOBAL_INT \n");
+	//	else
+	//		printf("%lu POSITION_TARGET  = [ %f , %f , %f ] \n", write_count, position_target.x, position_target.y, position_target.z);
+
+	return;
+}
+#endif
 
 // ------------------------------------------------------------------------------
 //   Start Off-Board Mode
@@ -651,6 +730,20 @@ start()
 	printf("INITIAL POSITION YAW = %.4f \n", initial_position.yaw);
 	printf("\n");
 
+	//copy initial global position int
+	initial_global_position.lat_int        = local_data.global_position_int.lat;
+	initial_global_position.lon_int        = local_data.global_position_int.lon;
+	initial_global_position.alt       		= local_data.global_position_int.alt;
+	initial_global_position.vx       		= local_data.global_position_int.vx;
+	initial_global_position.vy       		= local_data.global_position_int.vy;
+	initial_global_position.vz       		= local_data.global_position_int.vz;
+	initial_global_position.yaw      		= local_data.attitude.yaw;
+	initial_global_position.yaw_rate 		= local_data.attitude.yawspeed;
+
+	printf("INITIAL GLOBAL POSITION [LAT,LON,ALT] = [ %d , %d , %.4f ] \n", initial_global_position.lat_int, initial_global_position.lon_int, initial_global_position.alt);
+	printf("INITIAL GLOBAL POSITION YAW = %.4f \n", initial_global_position.yaw);
+	printf("\n");
+
 	// we need this before starting the write thread
 
 
@@ -797,7 +890,7 @@ write_thread(void)
 {
 	// signal startup
 	writing_status = 2;
-
+#ifdef LOCAL_POSITIONING
 	// prepare an initial setpoint, just stay put
 	mavlink_set_position_target_local_ned_t sp;
 	sp.type_mask = MAVLINK_MSG_SET_POSITION_TARGET_LOCAL_NED_VELOCITY &
@@ -825,7 +918,36 @@ write_thread(void)
 
 	// signal end
 	writing_status = false;
+#else
+	// prepare an initial setpoint, just stay put
+	mavlink_set_position_target_global_int_t sp;
+	sp.type_mask = MAVLINK_MSG_SET_POSITION_TARGET_LOCAL_NED_VELOCITY &
+				   MAVLINK_MSG_SET_POSITION_TARGET_LOCAL_NED_YAW_RATE;
+	sp.coordinate_frame = MAV_FRAME_LOCAL_NED;
+	sp.vx       = 0.0;
+	sp.vy       = 0.0;
+	sp.vz       = 0.0;
+	sp.yaw_rate = 0.0;
 
+	// set position target
+	current_setpoint = sp;
+
+	// write a message and signal writing
+	write_global_setpoint();
+	writing_status = true;
+
+	// Pixhawk needs to see off-board commands at minimum 2Hz,
+	// otherwise it will go into fail safe
+	while ( not time_to_exit )
+	{
+		usleep(250000);   // Stream at 4Hz
+		write_global_setpoint();
+	}
+
+	// signal end
+	writing_status = false;
+
+#endif
 	return;
 
 }

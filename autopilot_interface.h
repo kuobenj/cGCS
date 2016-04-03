@@ -61,7 +61,14 @@
 #include <time.h>
 #include <sys/time.h>
 
-#include <common/mavlink.h>
+#include "common/mavlink.h"
+
+// ------------------------------------------------------------------------------
+//   if defined uses old local positioning, otherwise uses new gobal positioning
+// ------------------------------------------------------------------------------
+
+// #define LOCAL_POSITIONING
+
 
 // ------------------------------------------------------------------------------
 //   Defines
@@ -109,7 +116,6 @@
 #define MAVLINK_MSG_SET_POSITION_TARGET_LOCAL_NED_YAW_ANGLE    0b0000100111111111
 #define MAVLINK_MSG_SET_POSITION_TARGET_LOCAL_NED_YAW_RATE     0b0000010111111111
 
-
 // ------------------------------------------------------------------------------
 //   Prototypes
 // ------------------------------------------------------------------------------
@@ -118,6 +124,7 @@
 // helper functions
 uint64_t get_time_usec();
 void set_position(float x, float y, float z, mavlink_set_position_target_local_ned_t &sp);
+void set_global_position(int32_t lat_int, int32_t lon_int, float alt, mavlink_set_position_target_global_int_t &sp);
 void set_velocity(float vx, float vy, float vz, mavlink_set_position_target_local_ned_t &sp);
 void set_acceleration(float ax, float ay, float az, mavlink_set_position_target_local_ned_t &sp);
 void set_yaw(float yaw, mavlink_set_position_target_local_ned_t &sp);
@@ -256,8 +263,13 @@ public:
 
 	Mavlink_Messages current_messages;
 	mavlink_set_position_target_local_ned_t initial_position;
+	mavlink_set_position_target_global_int_t initial_global_position;
 
+	#ifdef LOCAL_POSITIONING
 	void update_setpoint(mavlink_set_position_target_local_ned_t setpoint);
+	#else
+	void update_global_setpoint(mavlink_set_position_target_global_int_t setpoint);
+	#endif
 	void read_messages();
 	int  write_message(mavlink_message_t message);
 
@@ -282,13 +294,21 @@ private:
 	pthread_t read_tid;
 	pthread_t write_tid;
 
+	#ifdef LOCAL_POSITIONING
 	mavlink_set_position_target_local_ned_t current_setpoint;
+	#else
+	mavlink_set_position_target_global_int_t current_setpoint;
+	#endif
 
 	void read_thread();
 	void write_thread(void);
 
 	int toggle_offboard_control( bool flag );
+	#ifdef LOCAL_POSITIONING
 	void write_setpoint();
+	#else
+	void write_global_setpoint();
+	#endif
 
 };
 
