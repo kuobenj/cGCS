@@ -54,6 +54,12 @@
 // ------------------------------------------------------------------------------
 
 #include "mavlink_control.h"
+#include <iostream>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/select.h>
+#include <termios.h>
 
 
 // ------------------------------------------------------------------------------
@@ -136,7 +142,30 @@ top (int argc, char **argv)
 	/*
 	 * Now we can implement the algorithm we want on top of the autopilot interface
 	 */
-	commands(autopilot_interface);
+	set_conio_terminal_mode();
+	while(1)
+	{
+		//http://stackoverflow.com/questions/448944/c-non-blocking-keyboard-input
+		if (!kbhit())
+		{
+			commands(autopilot_interface);
+		}
+		else
+		{
+			reset_terminal_mode();
+			float new_lat;
+			float new_lon;
+			int new_alt;
+			cout << "Input new lat";
+			cin >> new_lat;
+			cout << "Input new lon";
+			cin >> new_lon;
+			cout << "Input new alt";
+			cin >> new_alt;
+			set_conio_terminal_mode();
+		}
+		
+	}
 
 
 	// --------------------------------------------------------------------------
@@ -378,4 +407,41 @@ main(int argc, char **argv)
 
 }
 
+void reset_terminal_mode()
+{
+    tcsetattr(0, TCSANOW, &orig_termios);
+}
 
+void set_conio_terminal_mode()
+{
+    struct termios new_termios;
+
+    /* take two copies - one for now, one for later */
+    tcgetattr(0, &orig_termios);
+    memcpy(&new_termios, &orig_termios, sizeof(new_termios));
+
+    /* register cleanup handler, and set the new terminal mode */
+    atexit(reset_terminal_mode);
+    cfmakeraw(&new_termios);
+    tcsetattr(0, TCSANOW, &new_termios);
+}
+
+int kbhit()
+{
+    struct timeval tv = { 0L, 0L };
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(0, &fds);
+    return select(1, &fds, NULL, NULL, &tv);
+}
+
+int getch()
+{
+    int r;
+    unsigned char c;
+    if ((r = read(0, &c, sizeof(c))) < 0) {
+        return r;
+    } else {
+        return c;
+    }
+}
