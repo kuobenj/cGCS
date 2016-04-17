@@ -1,0 +1,6 @@
+g++ -I mavlink/include/mavlink/v1.0 mavlink_control.cpp serial_port.cpp autopilot_interface.cpp -o mavlink_control -lpthread
+autopilot_interface.cpp: In member function ‘void Autopilot_Interface::write_global_setpoint()’:
+autopilot_interface.cpp:510:89: error: ‘mavlink_msg_set_position_target_gobal_int_encode’ was not declared in this scope
+  mavlink_msg_set_position_target_gobal_int_encode(system_id, companion_id, &message, &sp);
+                                                                                         ^
+make: *** [mavlink_control] Error 1

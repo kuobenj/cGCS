@@ -108,7 +108,7 @@ top (int argc, char **argv)
 	 * is changed by using the method update_setpoint().  Sending these messages
 	 * are only half the requirement to get response from the autopilot, a signal
 	 * to enter "offboard_control" mode is sent by using the enable_offboard_control()
-	 * method.  Signal the exit of this mode with disable_offboard_control().  It's
+	 * method.  Signal the exit of this mode wiautopilot_interfaceth disable_offboard_control().  It's
 	 * important that one way or another this program signals offboard mode exit,
 	 * otherwise the vehicle will go into failsafe.
 	 *
@@ -152,18 +152,44 @@ top (int argc, char **argv)
 		}
 		else
 		{
-			reset_terminal_mode();
-			float new_lat;
-			float new_lon;
-			int new_alt;
-			cout << "Input new lat";
-			cin >> new_lat;
-			cout << "Input new lon";
-			cin >> new_lon;
-			cout << "Input new alt";
-			cin >> new_alt;
-			set_conio_terminal_mode();
+			switch(getch())
+			{
+				case 'u' :
+				reset_terminal_mode();
+				float new_lat;
+				float new_lon;
+				int new_alt;
+				int dummy;
+				cout << "Input new lat:";
+				cin >> new_lat;
+				cout << "new lat = " << new_lat << "\n\n";
+				cout << "Input new lon:";
+				cin >> new_lon;
+				cout << "new lat = " << new_lat << "\n\n";
+				cout << "Input new alt:";
+				cin >> new_alt;
+				cout << "new lat = " << new_lat << "\n\n";
+				cout << "Hit Enter to Continue";
+
+				mavlink_set_position_target_global_int_t sp_global;
+				sp_global.lat_int 	= new_lat;
+				sp_global.lon_int 	= new_lon;
+				sp_global.alt 		= new_alt;
+
+
+				autopilot_interface.update_global_setpoint(sp_global);
+
+
+				cin.ignore(20);
+				set_conio_terminal_mode();
+				break;
+				case 'q' :
+				cout << "Ctrl-C to quit\n";
+				reset_terminal_mode();
+				while(1);
+			}
 		}
+
 		
 	}
 
@@ -232,11 +258,19 @@ commands(Autopilot_Interface &api)
 		// 	 	   ip.y - 5.0 , // [m]
 		// 		   ip.z       , // [m]
 		// 		   sp         );
+	static int w = 0;
+	if (w == 0)
+	{
+		set_global_position( ip_global.lat_int,
+							 ip_global.lon_int,
+							 ip_global.alt,
+							 sp_global		);
 
-
-	// Example 1.2 - Append Yaw Command
-	set_yaw( ip.yaw , // [rad]
-			 sp     );
+		// Example 1.2 - Append Yaw Command
+		set_yaw( ip.yaw , // [rad]
+				 sp     );
+		w++;
+	}
 
 	// SEND THE COMMAND
 	// api.update_setpoint(sp);
@@ -244,14 +278,18 @@ commands(Autopilot_Interface &api)
 	// NOW pixhawk will try to move
 
 	// Wait for 8 seconds, check position
-	for (int i=0; i < 8; i++)
-	{
-		// mavlink_local_position_ned_t pos = api.current_messages.local_position_ned;
-		// printf("%i CURRENT POSITION XYZ = [ % .4f , % .4f , % .4f ] \n", i, pos.x, pos.y, pos.z);
-		mavlink_global_position_int_t pos = api.current_messages.global_position_int;
-		printf("%i CURRENT POSITION XYZ = [ %d , %d , %d ] \n", i, pos.lat, pos.lon, pos.alt);
-		sleep(1);
-	}
+	// for (int i=0; i < 8; i++)
+	// {
+	// 	// mavlink_local_position_ned_t pos = api.current_messages.local_position_ned;
+	// 	// printf("%i CURRENT POSITION XYZ = [ % .4f , % .4f , % .4f ] \n", i, pos.x, pos.y, pos.z);
+	// 	mavlink_global_position_int_t pos = api.current_messages.global_position_int;
+	// 	printf("%i CURRENT POSITION XYZ = [ %d , %d , %d ] \n", i, pos.lat, pos.lon, pos.alt);
+	// 	sleep(1);
+	// }
+
+	mavlink_global_position_int_t pos = api.current_messages.global_position_int;
+	printf("CURRENT POSITION LAT LON ALT = [ %d , %d , %d ] \n", pos.lat, pos.lon, pos.alt);
+	sleep(1);
 
 	printf("\n");
 
@@ -273,11 +311,8 @@ commands(Autopilot_Interface &api)
 	// copy current messages
 	Mavlink_Messages messages = api.current_messages;
 
-	// local position in ned frame
-	mavlink_local_position_ned_t pos = messages.local_position_ned;
+	//battery status
 	mavlink_battery_status_t batt_stat = messages.battery_status;
-	printf("Got message LOCAL_POSITION_NED (spec: https://pixhawk.ethz.ch/mavlink/#LOCAL_POSITION_NED)\n");
-	printf("    pos  (NED):  %f %f %f (m)\n", pos.x, pos.y, pos.z );
 	printf("Got message ID_BATTERY_STATUS \n");
 	for (int i = 0; i < 10; i++)
 	{
@@ -407,11 +442,17 @@ main(int argc, char **argv)
 
 }
 
+// ------------------------------------------------------------------------------
+//   Helper Functions
+// ------------------------------------------------------------------------------
+
 void reset_terminal_mode()
 {
     tcsetattr(0, TCSANOW, &orig_termios);
 }
 
+
+//set terminal to accept a key command to update stuff
 void set_conio_terminal_mode()
 {
     struct termios new_termios;
@@ -423,6 +464,8 @@ void set_conio_terminal_mode()
     /* register cleanup handler, and set the new terminal mode */
     atexit(reset_terminal_mode);
     cfmakeraw(&new_termios);
+    // new_termios.c_iflag |= (INLCR | IGNCR);
+    new_termios.c_oflag |= OPOST;
     tcsetattr(0, TCSANOW, &new_termios);
 }
 

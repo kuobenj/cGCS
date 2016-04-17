@@ -257,6 +257,7 @@ void
 Autopilot_Interface::
 update_global_setpoint(mavlink_set_position_target_global_int_t setpoint)
 {
+	printf("GLOBAL POSITION SETPOINT XYZ = [ %d , %d , %.4f ] \n", current_setpoint.lat_int, current_setpoint.lon_int, current_setpoint.alt);
 	current_setpoint = setpoint;
 }
 #endif
