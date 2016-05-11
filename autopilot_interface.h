@@ -267,8 +267,10 @@ public:
 
 	#ifdef LOCAL_POSITIONING
 	void update_setpoint(mavlink_set_position_target_local_ned_t setpoint);
+	mavlink_set_position_target_local_ned_t get_setpoint();
 	#else
 	void update_global_setpoint(mavlink_set_position_target_global_int_t setpoint);
+	mavlink_set_position_target_global_int_t get_global_setpoint();
 	#endif
 	void read_messages();
 	int  write_message(mavlink_message_t message);

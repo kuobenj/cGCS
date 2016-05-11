@@ -115,7 +115,7 @@ set_global_position(int32_t lat_int, int32_t lon_int, float alt, mavlink_set_pos
 	sp.lon_int   = lon_int;
 	sp.alt   = alt;
 
-	printf("GLOBAL POSITION SETPOINT XYZ = [ %d , %d , %.4f ] \n", sp.lat_int, sp.lon_int, sp.alt);
+	printf("GLOBAL POSITION SETPOINT LAT LON ALT = [ %d , %d , %.4f ] \n", sp.lat_int, sp.lon_int, sp.alt);
 
 }
 
@@ -249,6 +249,15 @@ update_setpoint(mavlink_set_position_target_local_ned_t setpoint)
 {
 	current_setpoint = setpoint;
 }
+// ------------------------------------------------------------------------------
+//   Get Setpoint
+// ------------------------------------------------------------------------------
+mavlink_set_position_target_local_ned_t
+Autopilot_Interface::
+get_setpoint()
+{
+	return current_setpoint;
+}
 #else
 // ------------------------------------------------------------------------------
 //   Update Global Setpoint
@@ -257,8 +266,17 @@ void
 Autopilot_Interface::
 update_global_setpoint(mavlink_set_position_target_global_int_t setpoint)
 {
-	printf("GLOBAL POSITION SETPOINT XYZ = [ %d , %d , %.4f ] \n", current_setpoint.lat_int, current_setpoint.lon_int, current_setpoint.alt);
+	// printf("GLOBAL POSITION SETPOINT XYZ = [ %d , %d , %.4f ] \n", current_setpoint.lat_int, current_setpoint.lon_int, current_setpoint.alt);
 	current_setpoint = setpoint;
+}
+// ------------------------------------------------------------------------------
+//   Update Global Setpoint
+// ------------------------------------------------------------------------------
+mavlink_set_position_target_global_int_t
+Autopilot_Interface::
+get_global_setpoint()
+{
+	return current_setpoint;
 }
 #endif
 // ------------------------------------------------------------------------------

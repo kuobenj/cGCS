@@ -61,7 +61,6 @@
 #include <sys/select.h>
 #include <termios.h>
 
-
 // ------------------------------------------------------------------------------
 //   TOP
 // ------------------------------------------------------------------------------
@@ -180,7 +179,7 @@ top (int argc, char **argv)
 				autopilot_interface.update_global_setpoint(sp_global);
 
 
-				cin.ignore(20);
+				cin.ignore(1);
 				set_conio_terminal_mode();
 				break;
 				case 'q' :
@@ -258,9 +257,12 @@ commands(Autopilot_Interface &api)
 		// 	 	   ip.y - 5.0 , // [m]
 		// 		   ip.z       , // [m]
 		// 		   sp         );
-	static int w = 0;
-	if (w == 0)
+	
+	static int init_counter = 0;
+	if (init_counter == 0)
 	{
+		mavlink_set_position_target_local_ned_t ip = api.initial_position;
+		mavlink_set_position_target_global_int_t ip_global = api.initial_global_position;
 		set_global_position( ip_global.lat_int,
 							 ip_global.lon_int,
 							 ip_global.alt,
@@ -269,7 +271,14 @@ commands(Autopilot_Interface &api)
 		// Example 1.2 - Append Yaw Command
 		set_yaw( ip.yaw , // [rad]
 				 sp     );
-		w++;
+		init_counter++;
+	}
+	else
+	{
+		set_global_position( api.get_global_setpoint().lat_int,
+							 api.get_global_setpoint().lon_int,
+							 api.get_global_setpoint().alt,
+							 sp_global		);
 	}
 
 	// SEND THE COMMAND
